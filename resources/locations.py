@@ -2,75 +2,97 @@ from flask_restful import fields, Resource, reqparse, marshal
 from models.location import Location
 
 
-parser = reqparse.RequestParser()
-parser.add_argument(
-    'name',
-    type=str,
-    help='Location\'s name',
-    required=True
-)
-parser.add_argument(
-    'email',
-    type=str,
-    help='Location\'s e-mail',
-    required=True
-)
-parser.add_argument(
-    'phone',
-    type=str,
-    help='Location\'s phone',
-    required=True
-)
-parser.add_argument(
-    'business_hour',
-    type=list,
-    location='json',
-    help='Location\'s business hour',
-    required=True
-)
-parser.add_argument(
-    'street',
-    type=str,
-    help='Location\'s street',
-    required=True
-)
-parser.add_argument(
-    'number',
-    type=str,
-    help='Location\'s address number',
-    required=True
-)
-parser.add_argument(
-    'zip_code',
-    type=str,
-    help='Location\'s zip code',
-    required=True
-)
-parser.add_argument(
-    'neighborhood',
-    type=str,
-    help='Location\'s neighborhood',
-    required=True
-)
-parser.add_argument(
-    'state',
-    type=str,
-    help='Location\'s state',
-    required=True
-)
-parser.add_argument(
-    'city',
-    type=str,
-    help='Location\'s city',
-    required=True
-)
-parser.add_argument(
-    'country',
-    type=str,
-    help='Location\'s country',
-    required=True
-)
+def add_arguments(request_arguments, parser, required=True):
+    for key, value in request_arguments.items():
+        if value.get('location'):
+            parser.add_argument(
+                key,
+                type=value.get('type'),
+                location=value.get('location'),
+                help=value.get('help'),
+                required=required
+            )
+            continue
+        parser.add_argument(
+            key,
+            type=value.get('type'),
+            help=value.get('help'),
+            required=required
+        )
 
+
+def replace_arguments(request_arguments, parser, required=True):
+    for key, value in request_arguments.items():
+        if value.get('location'):
+            parser.replace_argument(
+                key,
+                type=value.get('type'),
+                location=value.get('location'),
+                help=value.get('help'),
+                required=required
+            )
+            continue
+        parser.replace_argument(
+            key,
+            type=value.get('type'),
+            help=value.get('help'),
+            required=required
+        )
+
+
+request_arguments = {
+    'name': {
+        'type': str,
+        'help': 'Location\'s name',
+    },
+    'email': {
+        'type': str,
+        'help': 'Location\'s email',
+    },
+    'phone': {
+        'type': str,
+        'help': 'Location\'s phone',
+    },
+    'business_hour': {
+        'type': list,
+        'location': 'json',
+        'help': 'Location\'s business hour',
+    },
+    'street': {
+        'type': str,
+        'help': 'Location\'s street',
+    },
+    'number': {
+        'type': str,
+        'help': 'Location\'s address number',
+    },
+    'zip_code': {
+        'type': str,
+        'help': 'Location\'s zip code',
+    },
+    'neighborhood': {
+        'type': str,
+        'help': 'Location\'s neighborhood',
+    },
+    'city': {
+        'type': str,
+        'help': 'Location\'s city',
+    },
+    'state': {
+        'type': str,
+        'help': 'Location\'s state',
+    },
+    'country': {
+        'type': str,
+        'help': 'Location\'s country',
+    },
+}
+
+parser = reqparse.RequestParser()
+add_arguments(request_arguments, parser)
+
+parser_put = parser.copy()
+replace_arguments(request_arguments, parser_put, False)
 
 location_fields = {
     'id': fields.Integer,
@@ -114,14 +136,16 @@ class LocationResource(Resource):
 
     def put(self, location_id):
         from app import db
-        for arg in parser.args:
-            arg.required = False
-        args = parser.parse_args()
+        args = parser_put.parse_args()
         location = Location.query.filter_by(id=location_id).first_or_404()
         for key, value in args.items():
-            setattr(location, key, value)
+            if value:
+                if key == 'business_hour':
+                    value = ', '.join(value)
+                setattr(location, key, value)
         db.session.commit()
-        return location
+        location = Location.query.filter_by(id=location_id).first()
+        return marshal_location(location)
 
     def delete(self, location_id):
         from app import db
